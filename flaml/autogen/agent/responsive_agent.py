@@ -82,7 +82,7 @@ class ResponsiveAgent(Agent):
         self._system_message = system_message
         self._oai_system_message = [{"content": self._system_message, "role": "system"}]
         self._is_termination_msg = (
-            is_termination_msg if is_termination_msg is not None else (lambda x: x.get("content") == "TERMINATE")
+            is_termination_msg if is_termination_msg is not None else (lambda x: "TERMINATE" in x.get("content", ""))
         )
         if oai_config is False:
             self.oai_config = False
