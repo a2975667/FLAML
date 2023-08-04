@@ -82,7 +82,7 @@ class ResponsiveAgent(Agent):
         self._system_message = system_message
         self._oai_system_message = [{"content": self._system_message, "role": "system"}]
         self._is_termination_msg = (
-            is_termination_msg if is_termination_msg is not None else (lambda x: x.get("content") == "TERMINATE")
+            is_termination_msg if is_termination_msg is not None else (lambda x: "TERMINATE" in x.get("content", ""))
         )
         if oai_config is False:
             self.oai_config = False
@@ -261,11 +261,17 @@ class ResponsiveAgent(Agent):
         if self._code_execution_config is False:
             return default_reply if self.oai_config is False else self._oai_reply(messages)
         code_blocks = extract_code(message["content"])
+
+        import re; filename = re.findall(r"# filename: (.*)", message["content"])
+        
         if len(code_blocks) == 1 and code_blocks[0][0] == UNKNOWN:
             # no code block is found, lang should be `UNKNOWN`
             return default_reply if self.oai_config is False else self._oai_reply(messages)
         # try to execute the code
-        exitcode, logs = self.execute_code_blocks(code_blocks)
+        if filename:
+            exitcode, logs = self.execute_code_blocks(code_blocks, filename=filename[0])
+        else:
+            exitcode, logs = self.execute_code_blocks(code_blocks)
         exitcode2str = "execution succeeded" if exitcode == 0 else "execution failed"
         return f"exitcode: {exitcode} ({exitcode2str})\nCode output: {logs}"
 
@@ -299,7 +305,7 @@ class ResponsiveAgent(Agent):
         """
         return execute_code(code, **kwargs)
 
-    def execute_code_blocks(self, code_blocks):
+    def execute_code_blocks(self, code_blocks, filename=None):
         """Execute the code blocks and return the result."""
         logs_all = ""
         for code_block in code_blocks:
@@ -312,6 +318,8 @@ class ResponsiveAgent(Agent):
             elif lang in ["python", "Python"]:
                 if code.startswith("# filename: "):
                     filename = code[11 : code.find("\n")].strip()
+                elif filename:
+                    filename = filename
                 else:
                     filename = None
                 exitcode, logs, image = self.run_code(
